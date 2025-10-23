@@ -1,0 +1,21 @@
+# Pliki tymczasowe i cache
+__pycache__/
+*.pyc
+
+# Środowisko wirtualne
+venv/
+.env/
+
+# Pliki systemowe
+.DS_Store
+
+# Ustawienia IDE
+.vscode/
+.idea/
+
+# Dane lokalne
+*.log
+local_settings.py
+config.json
+
+camera/frames/

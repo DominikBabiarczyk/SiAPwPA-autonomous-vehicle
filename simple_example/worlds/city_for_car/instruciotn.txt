@@ -1,0 +1,2 @@
+uruhcomienie gotowego swiata z autami ktores ie porusaly: 
+- ros2 launch ros_gz_sim_demos diff_drive.launch.py

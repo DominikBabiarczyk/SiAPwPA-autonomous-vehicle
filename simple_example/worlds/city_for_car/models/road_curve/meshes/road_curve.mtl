@@ -1,0 +1,18 @@
+newmtl asphalt
+Ka 0.1 0.1 0.1
+Kd 0.18 0.18 0.18
+Ks 0 0 0
+d 1
+illum 2
+newmtl line_yellow
+Ka 0.9 0.7 0.0
+Kd 0.9 0.7 0.0
+Ks 0 0 0
+d 1
+illum 2
+newmtl line_white
+Ka 0.9 0.9 0.9
+Kd 0.9 0.9 0.9
+Ks 0 0 0
+d 1
+illum 2

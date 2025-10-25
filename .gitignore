@@ -19,3 +19,5 @@ local_settings.py
 config.json
 
 camera/frames/
+
+core

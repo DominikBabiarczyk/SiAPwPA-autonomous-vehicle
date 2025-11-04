@@ -23,11 +23,13 @@ import time
 from typing import Optional
 import os
 
+from vehicle_go import VehicleCommander
 from transform import BirdView
 from image_preprocesing import ImageProcessor
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from camera.Qlerning.preproces_sensor import PreprocessSensor
 
 try:
 	from cv_bridge import CvBridge
@@ -79,18 +81,22 @@ class ImageAnalyzer(Node):
 
 		# cv_img = self.image_procesor.canny_edges(cv_img)
 		# cv_img = self.image_procesor.get_lines(cv_img)
-
+		vehicle_commander = VehicleCommander()
+		vehicle_commander.go_vehicle(0.0, -0.1)
+		vehicle_commander.shutdown()
 
 		transformation = BirdView()
 		bird_view = transformation.apply_transform(cv_img)
 		bird_line_image = self.image_procesor.get_lines(bird_view)
+		state = PreprocessSensor(bird_line_image) 
+		roi = state.get_sensor_detect()
 
 		if _HAS_CV2:
 			if now - self.last_save_time >= 1.0:
 				self.last_save_time = now
 				ts = time.strftime('%Y%m%d_%H%M%S', time.localtime(now))
 				fname = os.path.join("frames", f'frame_{ts}.png')
-				cv2.imwrite(fname, bird_line_image)
+				cv2.imwrite(fname, roi)
 
 
 def main(argv=None):

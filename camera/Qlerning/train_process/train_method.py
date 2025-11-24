@@ -1,11 +1,16 @@
 import random
 from collections import deque
 from typing import Optional, Tuple, List
+# Opcjonalny import h5py do obsługi pliku replay_buffer.h5
+try:
+	import h5py  # type: ignore
+	_HAS_H5PY = True
+except ImportError:
+	_HAS_H5PY = False
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from .q_network import QNetwork
 
 
@@ -63,19 +68,109 @@ class ReplayBuffer:
 			torch.tensor(dones, dtype=torch.float32),
 		)
 
+	def load_from_hdf5(self, h5_path: str, limit: Optional[int] = None) -> int:
+		"""Wczytuje przejścia z pliku HDF5 i dodaje je do bufora.
+
+		Parametry:
+		- h5_path: ścieżka do pliku HDF5.
+		- limit: maksymalna liczba przejść do wczytania (None = wszystkie).
+
+		Zwraca: liczbę faktycznie dodanych przejść.
+
+		Założenie: struktura datasetów zgodna z zapisem w Learning_management:
+		  vec1, vec2, vec3, pos, yaw,
+		  next_vec1, next_vec2, next_vec3, next_pos, next_yaw,
+		  action_vel, action_str, reward, done
+		"""
+		if not _HAS_H5PY:
+			print("[ReplayBuffer] h5py nie jest dostępne - pomijam wczytanie.")
+			return 0
+		if not h5py.is_hdf5(h5_path):
+			print(f"[ReplayBuffer] Plik {h5_path} nie jest prawidłowym plikiem HDF5.")
+			return 0
+		added = 0
+		with h5py.File(h5_path, 'r') as f:
+			length = f['reward'].shape[0]
+			if limit is not None:
+				length = min(length, limit)
+			for i in range(length):
+				# Pobierz część stanu
+				vec1 = torch.from_numpy(f['vec1'][i]).float()
+				vec2 = torch.from_numpy(f['vec2'][i]).float()
+				vec3 = torch.from_numpy(f['vec3'][i]).float()
+				pos = torch.from_numpy(f['pos'][i]).float()
+				yaw = torch.from_numpy(f['yaw'][i]).float()
+				# Następny stan
+				n_vec1 = torch.from_numpy(f['next_vec1'][i]).float()
+				n_vec2 = torch.from_numpy(f['next_vec2'][i]).float()
+				n_vec3 = torch.from_numpy(f['next_vec3'][i]).float()
+				n_pos = torch.from_numpy(f['next_pos'][i]).float()
+				n_yaw = torch.from_numpy(f['next_yaw'][i]).float()
+				# Akcja / nagroda / done
+				a_vel = int(f['action_vel'][i])
+				a_str = int(f['action_str'][i])
+				r = float(f['reward'][i])
+				d = bool(f['done'][i])
+				self.push((vec1, vec2, vec3, pos, yaw), (a_vel, a_str), r, (n_vec1, n_vec2, n_vec3, n_pos, n_yaw), d)
+				added += 1
+		print(f"[ReplayBuffer] Wczytano {added} przejść z {h5_path}")
+		return added
+
+	def sample_hdf5_batch(self, h5_path: str, batch_size: int):
+		"""Losowo próbuje batch bez ładowania całego pliku do bufora.
+		Zwraca tuplę identyczną jak sample(), ale dane pobrane bezpośrednio z pliku.
+		"""
+		if not _HAS_H5PY:
+			raise RuntimeError("h5py nie jest dostępne.")
+		with h5py.File(h5_path, 'r') as f:
+			length = f['reward'].shape[0]
+			if batch_size > length:
+				raise ValueError(f"Żądany batch_size {batch_size} > liczba rekordów {length}")
+			indices = random.sample(range(length), batch_size)
+			vec1 = torch.stack([torch.from_numpy(f['vec1'][i]).float() for i in indices])
+			vec2 = torch.stack([torch.from_numpy(f['vec2'][i]).float() for i in indices])
+			vec3 = torch.stack([torch.from_numpy(f['vec3'][i]).float() for i in indices])
+			pos = torch.stack([torch.from_numpy(f['pos'][i]).float() for i in indices])
+			yaw = torch.stack([torch.from_numpy(f['yaw'][i]).float() for i in indices])
+			n_vec1 = torch.stack([torch.from_numpy(f['next_vec1'][i]).float() for i in indices])
+			n_vec2 = torch.stack([torch.from_numpy(f['next_vec2'][i]).float() for i in indices])
+			n_vec3 = torch.stack([torch.from_numpy(f['next_vec3'][i]).float() for i in indices])
+			n_pos = torch.stack([torch.from_numpy(f['next_pos'][i]).float() for i in indices])
+			n_yaw = torch.stack([torch.from_numpy(f['next_yaw'][i]).float() for i in indices])
+			a_vel = torch.tensor([int(f['action_vel'][i]) for i in indices], dtype=torch.long)
+			a_str = torch.tensor([int(f['action_str'][i]) for i in indices], dtype=torch.long)
+			rewards = torch.tensor([float(f['reward'][i]) for i in indices], dtype=torch.float32)
+			dones = torch.tensor([float(f['done'][i]) for i in indices], dtype=torch.float32)
+			return (
+				vec1,
+				vec2,
+				vec3,
+				pos,
+				yaw,
+				a_vel,
+				a_str,
+				rewards,
+				n_vec1,
+				n_vec2,
+				n_vec3,
+				n_pos,
+				n_yaw,
+				dones,
+		)
+
 
 class DQNTrainer:
-	"""Klasa odpowiedzialna za trenowanie sieci QNetwork.
-
+	"""
+		Klasa odpowiedzialna za trenowanie sieci QNetwork.
 	"""
 
 	def __init__(
 		self,
-		q_network: Optional[QNetwork] = None,
+		q_network: Optional[QNetwork],
+		buffer: ReplayBuffer,
 		lr: float = 1e-3,
 		gamma: float = 0.99,
 		batch_size: int = 32,
-		buffer_capacity: int = 50_000,
 		device: Optional[str] = None,
 	):
 		self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -84,8 +179,13 @@ class DQNTrainer:
 		self.optimizer = optim.Adam(self.q_network.parameters(), lr=lr)
 		self.gamma = gamma
 		self.batch_size = batch_size
-		self.replay_buffer = ReplayBuffer(capacity=buffer_capacity)
+		self.replay_buffer = buffer
 		self.loss_fn = nn.MSELoss()
+
+	def load_buffer_from_hdf5(self, h5_path: str, limit: Optional[int] = None) -> int:
+		"""Ładuje przejścia z pliku HDF5 do wewnętrznego ReplayBuffer.
+		Zwraca liczbę dodanych rekordów."""
+		return self.replay_buffer.load_from_hdf5(h5_path, limit)
 
 	def select_action(self, state, epsilon: float = 0.1) -> Tuple[int, int]:
 		"""Wybór akcji metodą epsilon-greedy.
@@ -201,26 +301,23 @@ class DQNTrainer:
 
 
 if __name__ == "__main__":
+	MODEL_PATH = "camera/Qlerning/results/qnetwork_model.pth"
 	trainer = DQNTrainer()
-	for _ in range(40):
-		s = (
-			torch.randn(100),
-			torch.randn(100),
-			torch.randn(100),
-			torch.randn(2),
-			torch.randn(1),
-		)
-		ns = (
-			torch.randn(100),
-			torch.randn(100),
-			torch.randn(100),
-			torch.randn(2),
-			torch.randn(1),
-		)
-		a = (random.randint(0, 10), random.randint(0, 8))
-		r = random.random() * 2 - 1  # nagroda z zakresu [-1,1]
-		d = random.random() < 0.1
-		trainer.add_transition(s, a, r, ns, d)
+	trainer.load_buffer_from_hdf5('camera/Qlerning/results/replay_buffer.h5', limit=5000)
 
-	metrics = trainer.train_step()
-	print("Train step metrics:", metrics)
+	# Wczytaj model jeśli istnieje
+	import os
+	if os.path.exists(MODEL_PATH):
+		print(f"[DQNTrainer] Wczytuję model z {MODEL_PATH}")
+		trainer.load(MODEL_PATH)
+	else:
+		print(f"[DQNTrainer] Brak pliku {MODEL_PATH}, trenuję od zera.")
+
+	for step in range(1000):
+		metrics = trainer.train_step()
+		if metrics:
+			print(step, metrics)
+
+	# Zapisz model po treningu
+	trainer.save(MODEL_PATH)
+	print(f"[DQNTrainer] Model zapisany do {MODEL_PATH}")

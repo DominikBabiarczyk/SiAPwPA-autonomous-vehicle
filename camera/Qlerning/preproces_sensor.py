@@ -59,7 +59,7 @@ class PreprocessSensor(Node):
         lines = self.image_procesor.get_lines(bird_view_image)
 
         if lines is not None:
-            cv2.imwrite(f"frame_{self.frame_counter:06d}.png", lines)
+            # cv2.imwrite(f"frame_{self.frame_counter:06d}.png", lines)
             self.frame_counter += 1
 
         height, width = lines.shape[:2]

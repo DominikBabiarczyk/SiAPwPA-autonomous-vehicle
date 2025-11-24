@@ -30,6 +30,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from camera.Qlerning.preproces_sensor import PreprocessSensor
+import cv2
 
 try:
 	from cv_bridge import CvBridge
@@ -87,6 +88,7 @@ class ImageAnalyzer(Node):
 
 		transformation = BirdView()
 		bird_view = transformation.apply_transform(cv_img)
+		cv2.imwrite(f"camera/bird_view.png", bird_view)
 		bird_line_image = self.image_procesor.get_lines(bird_view)
 		state = PreprocessSensor(bird_line_image) 
 		roi = state.get_sensor_detect()

@@ -1,3 +1,4 @@
+
 import cv2
 import numpy as np
 # Prosta klasa do przetwarzania obrazu: binarizacja i detekcja krawędzi

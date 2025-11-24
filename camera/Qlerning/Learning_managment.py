@@ -3,18 +3,29 @@ from camera.Qlerning.position_progressor import PositionProgressor
 from camera.Qlerning.set_action import SetAction
 from camera.Qlerning.state_loader import StateLoader
 from camera.Qlerning.train_process.q_network import QNetwork
-from camera.Qlerning.train_process.train_method import ReplayBuffer
+from camera.Qlerning.train_process.train_method import DQNTrainer, ReplayBuffer
 from camera.get_odometry import OdometrySubscriber
 import rclpy
 import numpy as np
 import torch
 import subprocess
 import os
+import shutil
+import glob
+from datetime import datetime
 try:
     import h5py
     _HAS_H5PY = True
 except ImportError:
     _HAS_H5PY = False
+
+def log(i, position_progressor, reward, odometry_subscriber):
+    progress = position_progressor.get_position_progress()
+
+    print(f"Reward step {i}: {reward}")
+    print(f"Progress step {i}: {progress}")
+    print(f"Actual position: {odometry_subscriber.get_actual_position()}")
+    print("--------------------------")
 
 class LearningManagement:
     def __init__(self):
@@ -25,6 +36,19 @@ class LearningManagement:
         self.state_loader = StateLoader(self.odometry_subscriber)
         self.q_network = QNetwork()
         self.m_memory = ReplayBuffer(10000)
+        self.trainer = DQNTrainer(self.q_network, self.m_memory)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_path = "camera/Qlerning/results/qnetwork_model.pth"
+        if os.path.exists(model_path):
+            try:
+                state = torch.load(model_path, map_location=self.device)
+                self.q_network.load_state_dict(state)
+                print(f"[QNetwork] Wczytano model z {model_path}")
+            except Exception as e:
+                print(f"[QNetwork] Nie udało się wczytać {model_path}: {e}")
+        else:
+            print(f"[QNetwork] Brak pliku {model_path} — używam nowo zainicjalizowanej sieci.")
+    
         self.cmd = [
             "gz", "service", "-s", "/world/Trapezoid/set_pose",
             "--reqtype", "gz.msgs.Pose",
@@ -32,12 +56,65 @@ class LearningManagement:
             "--req", 'name: "saye_1" position { x: 1.0 y: 0.4 z: 0.1 } orientation { w: 1.0 }',
             "--timeout", "3000"
         ]
-        # Inicjalizacja pliku HDF5 do trwałego zapisu przejść
-        self.h5_path = "replay_buffer.h5"
+
+        self.cmd = ["gz",  "sim",  "-r",  "simple_example/worlds/Trapezoid/worlds/Trapezoid.world"]
+        self.cmd = [
+            "gz", "service", "-s", "/world/Trapezoid/control",
+            "--reqtype", "gz.msgs.WorldControl",
+            "--reptype", "gz.msgs.Boolean",
+            "--req", "reset { all: true }",
+            "--timeout", "3000",
+        ]
+
+        self.results_dir = "camera/Qlerning/results/data"
+        os.makedirs(self.results_dir, exist_ok=True)
+        pattern = os.path.join(self.results_dir, "replay_buffer_*.h5")
+        existing = glob.glob(pattern)
+        max_idx = 0
+        for p in existing:
+            name = os.path.basename(p)
+            parts = name.replace('.h5','').split('_')
+            if len(parts) >= 3:
+                try:
+                    idx = int(parts[-1])
+                    if idx > max_idx:
+                        max_idx = idx
+                except ValueError:
+                    continue
+        next_idx = max_idx + 1
+        self.h5_path = os.path.join(self.results_dir, f"replay_buffer_{next_idx}.h5")
+        self.h5_latest = os.path.join(self.results_dir, "replay_buffer_latest.h5")
+        self._h5_save_count = 0
+        self._h5_copy_every = 100
+        # Plik logów metryk treningowych
+        self.metrics_log_path = os.path.join("camera", "Qlerning", "results", "training_metrics.log")
+        try:
+            os.makedirs(os.path.dirname(self.metrics_log_path), exist_ok=True)
+            if not os.path.exists(self.metrics_log_path):
+                with open(self.metrics_log_path, 'w') as f:
+                    f.write("timestamp,phase,epoch,step,total_steps,loss_total,loss_velocity,loss_steering,buffer_size,extra\n")
+        except Exception as e:
+            print(f"[MetricsLog] Nie udało się przygotować pliku log: {e}")
         if _HAS_H5PY:
             self._init_hdf5()
         else:
             print("[HDF5] h5py nie jest zainstalowane - pomijam zapis do pliku. Zainstaluj pakiet aby włączyć funkcję.")
+    
+    def teleport_and_reset(self):
+        """Teleportuje model na (1.0,0.4,0.1) i jeśli tryb odometrii to 'relative_zero' zeruje logiczną odometrię.
+
+        Sekwencja:
+        1. Wywołanie usługi set_pose.
+        2. Jedno spin_once aby otrzymać nową odometrię w miejscu teleporu.
+        3. reset_origin (tylko w trybie relative_zero) tak aby /relative_odometry startowało od (0,0).
+        """
+        # self.odometry_subscriber.reset_odometry()
+
+        move = subprocess.run(self.cmd, capture_output=True, text=True)
+        rclpy.spin_once(self.odometry_subscriber, timeout_sec=0.2)
+        return move
+
+
 
     def _convert_state(self, raw_state):
         """Konwersja słownika stanu na krotkę tensorów oczekiwaną przez QNetwork.
@@ -64,13 +141,11 @@ class LearningManagement:
         ywa = torch.tensor([yaw], dtype=torch.float32)
         return vec1, vec2, vec3, pos, ywa
 
-    # ---------------- HDF5 zapisywanie -----------------
     def _init_hdf5(self):
         """Tworzy strukturę pliku HDF5 jeśli nie istnieje."""
         if os.path.exists(self.h5_path):
             return  # już istnieje
         with h5py.File(self.h5_path, 'w') as f:
-            # Każde pole ma pierwszy wymiar rozszerzalny (liczba przejść)
             def dset(name, shape, dtype='float32'):
                 f.create_dataset(name, shape=(0,) + shape, maxshape=(None,) + shape, dtype=dtype, chunks=True, compression='gzip', compression_opts=4)
             dset('vec1', (100,))
@@ -98,7 +173,6 @@ class LearningManagement:
         with h5py.File(self.h5_path, 'a') as f:
             current = f['reward'].shape[0]
             new_size = current + 1
-            # Resize wszystkich datasetów
             for name in f.keys():
                 f[name].resize(new_size, axis=0)
             f['vec1'][current] = vec1.cpu().numpy()
@@ -115,20 +189,26 @@ class LearningManagement:
             f['action_str'][current] = int(action[1])
             f['reward'][current] = float(reward)
             f['done'][current] = 1 if done else 0
-        # Można dodać prosty log co N zapisów
+        # zwiększ licznik zapisów i okresowo skopiuj plik do wersji 'latest'
+        self._h5_save_count += 1
         if (new_size % 1000) == 0:
             print(f"[HDF5] Zapisano {new_size} przejść do {self.h5_path}")
+        if self._h5_save_count % self._h5_copy_every == 0:
+            try:
+                shutil.copyfile(self.h5_path, self.h5_latest)
+                print(f"[HDF5] Zaktualizowano latest: {self.h5_latest}")
+            except Exception as e:
+                print(f"[HDF5] Nie udało się skopiować do latest: {e}")
     
 
     def launch_qlearning(self):
         commander = SetAction()
-        for i in range(10000):
+        for i in range(500):
             rclpy.spin_once(commander.node, timeout_sec=0.05)
             rclpy.spin_once(self.odometry_subscriber, timeout_sec=0.0)
 
             raw_state = self.state_loader.get_state()
             state_tensors = self._convert_state(raw_state)
-            # print(f"State step {i}: {raw_state}")
 
             with torch.no_grad():
                 v_q, s_q = self.q_network(
@@ -145,78 +225,133 @@ class LearningManagement:
 
             reward, collision, target = self.awarding_prizes.check_and_award()
 
-            # STAN PO AKCJI
             raw_next_state = self.state_loader.get_state()
             next_state_tensors = self._convert_state(raw_next_state)
 
             done = False
 
-            # ZAPIS DO PAMIĘCI + HDF5
-            # self.m_memory.push(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors, done)
-            self._save_transition_hdf5(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors, done)
+            if collision or target or i % 50 == 0:
+                done = True
+                print("RESETTTTT")
+                self.teleport_and_reset()
 
-            if collision or target:
-                move = subprocess.run(self.cmd, capture_output=True, text=True)
+            self.m_memory.push(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors, done)
+            # self._save_transition_hdf5(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors, done)
 
-            print(f"Action step {i}: vel={best_action_velocity}, steer={best_action_angular}")
-            print(f"Reward step {i}: {reward}")
+            # print(f"Action step {i}: vel={best_action_velocity}, steer={best_action_angular}")
+            log(i, self.position_progressor, reward, self.odometry_subscriber)
 
-            progress = self.position_progressor.get_position_progress()
-            print(f"Progress step {i}: {progress}")
+            # Możliwe logowanie surowych kroków (opcjonalne odkomentowanie)
+            # self._log_metric(phase="collect", epoch=-1, step=i, loss_dict=None, buffer_size=len(self.m_memory), extra=f"reward={reward}")
         commander.node.destroy_node()
 
-    def check_progress(self):
-        commander = SetAction()
+    def run_qlearning_epochs(
+        self,
+        epochs: int = 100,
+        train_steps_per_epoch: int = 200,
+        save_model_each_epoch: bool = True,
+        model_path: str = "camera/Qlerning/results/qnetwork_model.pth",
+    ):
+        """Wielokrotne uruchomienie launch_qlearning oraz trening po każdym epizodzie.
 
-        for i in range(10000):
-            rclpy.spin_once(commander.node, timeout_sec=0.1)
+        Dla każdego epizodu:
+        1. Zbieranie 500 akcji (launch_qlearning)
+        2. Trening sieci na zebranych przejściach (maksymalnie train_steps_per_epoch aktualizacji)
+        3. Wypisanie metryk: liczba update'ów, średnie straty, rozmiar bufora
+        """
+        for ep in range(epochs):
+            print(f"\n[EPOCH {ep+1}/{epochs}] --- ZBIERANIE DANYCH ---")
+            self.launch_qlearning()
 
-            state = self.state_loader.get_state()
-            print(f"State step {i}: {state}")
-            v1 = torch.from_numpy(state["sensor"][0]).float()
-            v2 = torch.from_numpy(state["sensor"][1]).float()
-            v3 = torch.from_numpy(state["sensor"][2]).float()
-            pos = torch.from_numpy(np.array(state["position"])).float()
-            yaw = torch.tensor([state["yaw"]], dtype=torch.float32)
+            print(f"[EPOCH {ep+1}] Rozpoczynam trening (max {train_steps_per_epoch} kroków)")
+            total_losses = []
+            vel_losses = []
+            str_losses = []
+            updates = 0
+            for t in range(train_steps_per_epoch):
+                metrics = self.trainer.train_step()
+                if metrics is None:  # za mało danych w buforze
+                    if updates == 0:
+                        print(f"[EPOCH {ep+1}] Za mało danych do treningu (buffer_size={len(self.m_memory)})")
+                        self._log_metric(phase="train", epoch=ep+1, step=t, loss_dict=None, buffer_size=len(self.m_memory), extra="insufficient_data")
+                    break
+                total_losses.append(metrics["loss_total"])
+                vel_losses.append(metrics["loss_velocity"])
+                str_losses.append(metrics["loss_steering"])
+                updates += 1
+                # Log per-update (można wyłączyć jeśli za dużo danych):
+                self._log_metric(
+                    phase="train",
+                    epoch=ep+1,
+                    step=t,
+                    loss_dict=metrics,
+                    buffer_size=metrics.get("buffer_size", len(self.m_memory)),
+                    extra="update"
+                )
+            if updates > 0:
+                avg_loss = sum(total_losses) / updates
+                avg_vel = sum(vel_losses) / updates
+                avg_str = sum(str_losses) / updates
+                print(
+                    f"[EPOCH {ep+1}] Trening zakończony: updates={updates}, avg_loss={avg_loss:.4f}, avg_vel={avg_vel:.4f}, avg_str={avg_str:.4f}, buffer_size={len(self.m_memory)}"
+                )
+                self._log_metric(
+                    phase="epoch_summary",
+                    epoch=ep+1,
+                    step=updates,
+                    loss_dict={"loss_total": avg_loss, "loss_velocity": avg_vel, "loss_steering": avg_str},
+                    buffer_size=len(self.m_memory),
+                    extra="summary"
+                )
+            # zapis modelu po epizodzie
+            if save_model_each_epoch and updates > 0:
+                try:
+                    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+                    self.trainer.save(model_path)
+                    print(f"[EPOCH {ep+1}] Zapisano model do {model_path}")
+                    self._log_metric(
+                        phase="model_save",
+                        epoch=ep+1,
+                        step=updates,
+                        loss_dict=None,
+                        buffer_size=len(self.m_memory),
+                        extra="saved"
+                    )
+                except Exception as e:
+                    print(f"[EPOCH {ep+1}] Nie udało się zapisać modelu: {e}")
+                    self._log_metric(
+                        phase="model_save_fail",
+                        epoch=ep+1,
+                        step=updates,
+                        loss_dict=None,
+                        buffer_size=len(self.m_memory),
+                        extra=str(e)
+                    )
+        print("\n[RUN] Wszystkie epizody zakończone.")
 
-            action_velocity, action_angular = self.q_network.forward(
-                v1.unsqueeze(0),
-                v2.unsqueeze(0),
-                v3.unsqueeze(0),
-                pos.unsqueeze(0),
-                yaw.unsqueeze(0)
-            )
-            best_action_velocity = np.argmax(action_velocity.detach().numpy())
-            best_action_angular = np.argmax(action_angular.detach().numpy())
+    def _log_metric(self, phase: str, epoch: int, step: int, loss_dict, buffer_size: int, extra: str):
+        """Zapisuje pojedynczy wpis metryki do pliku log.
+        Format CSV: timestamp,phase,epoch,step,total_steps,loss_total,loss_velocity,loss_steering,buffer_size,extra
+        """
+        try:
+            total_steps = len(self.m_memory)
+            if loss_dict:
+                lt = loss_dict.get("loss_total", '')
+                lv = loss_dict.get("loss_velocity", '')
+                ls = loss_dict.get("loss_steering", '')
+            else:
+                lt = lv = ls = ''
+            line = f"{datetime.now().isoformat()},{phase},{epoch},{step},{total_steps},{lt},{lv},{ls},{buffer_size},{extra}\n"
+            with open(self.metrics_log_path, 'a') as f:
+                f.write(line)
+        except Exception as e:
+            print(f"[MetricsLog] Błąd zapisu: {e}")
 
-            best_action_velocity, best_action_angular = (7, 4)
-
-            commander.go_vehicle(10, 4)
-
-            reward, collision, target = self.awarding_prizes.check_and_award()
-
-            next_state_raw = self.state_loader.get_state()
-
-            print(f"State after action step {i}: {next_state_raw}")
-
-            done = False
-            # Konwersja stanu i następnego stanu do tensorów przed zapisem
-            state_tensors = self._convert_state(state)
-            next_state_tensors = self._convert_state(next_state_raw)
-            # self.m_memory.push(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors, done)
-            self._save_transition_hdf5(state_tensors, (best_action_velocity, best_action_angular), reward, next_state_tensors)
-
-            if collision or target:
-                move = subprocess.run(self.cmd, capture_output=True, text=True)
-    
-        commander.node.destroy_node()
-
-
-        return self.m_memory
 
 if __name__ == '__main__':
     rclpy.init()
     manager = LearningManagement()
-    memory = manager.launch_qlearning()
-    # print(memory)
+    # Uruchom serię epizodów z treningiem po każdym.
+    manager.run_qlearning_epochs()
+    # memory = manager.launch_qlearning()
     rclpy.shutdown()

@@ -88,8 +88,8 @@ class ColisionChecker(Node):
             # Rysuj czarny prostokąt przed zapisem
             bin_img = self.binarize_green(self.last_image)
             filename = f'chase_frame_{self.counter:04d}.png'
-            cv2.imwrite(filename, bin_img)
-            self.get_logger().info(f'Zapisano obraz: {filename}')
+            # cv2.imwrite(filename, bin_img)
+            # self.get_logger().info(f'Zapisano obraz: {filename}')
             self.counter += 1
             # self.last_save_time = current_time
         except Exception as e:

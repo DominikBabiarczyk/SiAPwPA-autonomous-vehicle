@@ -1,13 +1,12 @@
-
-# from check_colision import ColisionChecker
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
+import threading
 import time
 
-class VehicleCommander:
+class ContinuousVehicleCommander:
     def __init__(self):
-        rclpy.init()
+        # rclpy.init()
         self.node = Node('vehicle_commander')
         self.pub = self.node.create_publisher(Twist, '/cmd_vel', 10)
         # self.checker = ColisionChecker()
@@ -17,10 +16,10 @@ class VehicleCommander:
         msg.linear.x = linear_x
         msg.angular.z = angular_z
         start = time.time()
-        while time.time() - start < 0.2:
+        while time.time() - start < 0.02:
             self.pub.publish(msg)
             rclpy.spin_once(self.node, timeout_sec=0.1)
-        self.stop_vehicle()
+        # self.stop_vehicle()
         # print(self.checker.is_green_in_rect())
 
     def stop_vehicle(self):
@@ -37,6 +36,6 @@ class VehicleCommander:
         rclpy.shutdown()
 
 if __name__ == '__main__':
-    commander = VehicleCommander()
-    commander.go_vehicle(-0.7, 1.0)  # Przykład: jedź prosto przez 0.5s, potem zatrzymaj
+    commander = ContinuousVehicleCommander()
+    commander.go_vehicle(0.7, 1.0)  # Przykład: jedź prosto przez 0.5s, potem zatrzymaj
     commander.shutdown()

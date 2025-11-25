@@ -1,11 +1,10 @@
-from camera.Qlerning.position_progressor import PositionProgressor
-from camera.check_colision import ColisionChecker
-
+from jetracer_auto.qlearning.position_progressor import PositionProgressor
+from jetracer_auto.nodes.check_collision import CollisionChecker
 
 class AwardingPrizes:
     def __init__(self, odometry_subscriber):
         self.position_progressor = PositionProgressor(odometry_subscriber)
-        self.collision_checker = ColisionChecker()
+        self.collision_checker = CollisionChecker()
 
     def check_and_award(self):
         target = False

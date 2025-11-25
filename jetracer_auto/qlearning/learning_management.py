@@ -1,10 +1,10 @@
-from camera.Qlerning.awarding_prizes import AwardingPrizes
-from camera.Qlerning.position_progressor import PositionProgressor
-from camera.Qlerning.set_action import SetAction
-from camera.Qlerning.state_loader import StateLoader
-from camera.Qlerning.train_process.q_network import QNetwork
-from camera.Qlerning.train_process.train_method import DQNTrainer, ReplayBuffer
-from camera.get_odometry import OdometrySubscriber
+from jetracer_auto.qlearning.awarding_prizes import AwardingPrizes
+from jetracer_auto.qlearning.position_progressor import PositionProgressor
+from jetracer_auto.qlearning.set_action import SetAction
+from jetracer_auto.qlearning.state_loader import StateLoader
+from jetracer_auto.qlearning.train_process.q_network import QNetwork
+from jetracer_auto.qlearning.train_process.train_method import DQNTrainer, ReplayBuffer
+from jetracer_auto.sensors.get_odometry import OdometrySubscriber
 import rclpy
 import numpy as np
 import torch

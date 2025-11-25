@@ -1,6 +1,5 @@
-from camera.Qlerning.preproces_sensor import PreprocessSensor
-from camera.get_odometry import OdometrySubscriber
-
+from jetracer_auto.qlearning.preprocess_sensor import PreprocessSensor
+from jetracer_auto.sensors.get_odometry import OdometrySubscriber
 
 class StateLoader:
     def __init__(self, preprocess_odometry):

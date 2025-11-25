@@ -1,6 +1,6 @@
-
 import cv2
 import numpy as np
+
 # Prosta klasa do przetwarzania obrazu: binarizacja i detekcja krawędzi
 class ImageProcessor:
 	def __init__(self, threshold=128, canny1=100, canny2=200):

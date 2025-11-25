@@ -1,11 +1,11 @@
 
-from camera.splain_tracking.main_lines.get_error import ImageErrorCalculator
-from camera.splain_tracking.main_lines.get_mian_lines import MainLines
-from camera.splain_tracking.main_lines.get_splain_from_lines import LaneSpline
-from camera.splain_tracking.pid import PIDController
-from camera.vehicle_go_continuos import ContinuousVehicleCommander
-from camera.mpc_bicycle import compute_steering_from_binary
-from camera.publisker_image import ImagePublisher
+from jetracer_auto.perception.splain_tracking.get_error import ImageErrorCalculator
+from jetracer_auto.perception.splain_tracking.get_main_lines import MainLines
+from jetracer_auto.perception.splain_tracking.get_splain_from_lines import LaneSpline
+from jetracer_auto.control.pid.pid import PIDController
+from jetracer_auto.control.vehicle_go_continuous import ContinuousVehicleCommander
+from jetracer_auto.control.mpc.mpc_bicycle import compute_steering_from_binary
+from jetracer_auto.nodes.publish_image import ImagePublisher
 import rclpy
 import numpy as np
 import matplotlib.pyplot as plt

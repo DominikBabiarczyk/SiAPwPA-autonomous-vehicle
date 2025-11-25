@@ -23,13 +23,14 @@ import time
 from typing import Optional
 import os
 
-from vehicle_go import VehicleCommander
+
+from jetracer_auto.control.vehicle_go import VehicleCommander
+from jetracer_auto.perception.vision.image_preprocessing import ImageProcessor
+from jetracer_auto.qlearning.preprocess_sensor import PreprocessSensor
 from transform import BirdView
-from image_preprocesing import ImageProcessor
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from camera.Qlerning.preproces_sensor import PreprocessSensor
 import cv2
 
 try:

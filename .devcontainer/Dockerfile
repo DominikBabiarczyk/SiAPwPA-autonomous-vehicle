@@ -50,6 +50,11 @@ RUN apt-get update -y
 RUN apt-get install -y ros-humble-ros-gzharmonic
 RUN apt install -y ros-humble-turtle-tf2-py ros-humble-tf2-tools
 
+RUN apt-get update && apt-get install -y \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-nav2-behavior-tree 
+
 RUN apt-get update -y
 RUN apt-get upgrade -y
 

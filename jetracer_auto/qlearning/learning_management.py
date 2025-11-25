@@ -57,7 +57,7 @@ class LearningManagement:
             "--timeout", "3000"
         ]
 
-        self.cmd = ["gz",  "sim",  "-r",  "simple_example/worlds/Trapezoid/worlds/Trapezoid.world"]
+        self.cmd = ["gz",  "sim",  "-r",  "worlds/Trapezoid/worlds/Trapezoid.world"]
         self.cmd = [
             "gz", "service", "-s", "/world/Trapezoid/control",
             "--reqtype", "gz.msgs.WorldControl",

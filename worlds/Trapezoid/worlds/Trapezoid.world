@@ -57,7 +57,7 @@
          <cast_shadows>true</cast_shadows>
   </light>
   <include>
-    <uri>file:///home/developer/ros2_ws/src/simple_example/worlds/Trapezoid/models/Trapezoid_model.sdf</uri>
+    <uri>file:///home/developer/ros2_ws/src/worlds/Trapezoid/models/Trapezoid_model.sdf</uri>
     <name>racetrack</name>
     <pose>0 0 0 0 0 0</pose>
   </include>

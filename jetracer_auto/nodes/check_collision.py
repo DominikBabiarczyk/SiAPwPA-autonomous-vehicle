@@ -6,7 +6,7 @@ from cv_bridge import CvBridge
 import cv2
 import time
 
-class ColisionChecker(Node):
+class CollisionChecker(Node):
     # Pole przechowujące ostatni odebrany obraz BGR
     last_image = None
 

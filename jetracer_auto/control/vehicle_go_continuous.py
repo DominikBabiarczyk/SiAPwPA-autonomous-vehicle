@@ -32,6 +32,7 @@ class ContinuousVehicleCommander:
             rclpy.spin_once(self.node, timeout_sec=0.1)
 
     def shutdown(self):
+        self.stop_vehicle()
         self.node.destroy_node()
         rclpy.shutdown()
 

@@ -36,10 +36,10 @@ from typing import Tuple
 import torch
 import rclpy
 
-from jetracer_auto.qlearning.train_process.q_network import QNetwork
-from jetracer_auto.qlearning.state_loader import StateLoader
-from jetracer_auto.qlearning.set_action import SetAction
-from jetracer_auto.sensors.get_odometry import OdometrySubscriber
+from jetracer.nodes.qlearning.train_process.q_network import QNetwork
+from jetracer.nodes.qlearning.state_loader import StateLoader
+from jetracer.nodes.qlearning.set_action import SetAction
+from jetracer.nodes.sensors.get_odometry import OdometrySubscriber
 
 def _convert_state(raw_state: dict) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
 	"""Convert raw state dict into tensors expected by QNetwork.

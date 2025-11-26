@@ -1,5 +1,5 @@
-from jetracer_auto.qlearning.position_progressor import PositionProgressor
-from jetracer_auto.nodes.check_collision import CollisionChecker
+from jetracer.nodes.qlearning.position_progressor import PositionProgressor
+from jetracer.nodes.nodes.check_collision import CollisionChecker
 
 class AwardingPrizes:
     def __init__(self, odometry_subscriber):

@@ -24,9 +24,9 @@ from typing import Optional
 import os
 
 
-from jetracer_auto.control.vehicle_go import VehicleCommander
-from jetracer_auto.perception.vision.image_preprocessing import ImageProcessor
-from jetracer_auto.qlearning.preprocess_sensor import PreprocessSensor
+from jetracer.nodes.control.vehicle_go import VehicleCommander
+from jetracer.nodes.perception.vision.image_preprocessing import ImageProcessor
+from jetracer.nodes.qlearning.preprocess_sensor import PreprocessSensor
 from transform import BirdView
 import rclpy
 from rclpy.node import Node

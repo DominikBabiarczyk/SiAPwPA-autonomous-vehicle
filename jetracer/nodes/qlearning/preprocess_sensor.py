@@ -1,5 +1,5 @@
-from jetracer_auto.perception.vision.image_preprocessing import ImageProcessor
-from jetracer_auto.perception.vision.transform import BirdView
+from jetracer.nodes.perception.vision.image_preprocessing import ImageProcessor
+from jetracer.nodes.perception.vision.transform import BirdView
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image

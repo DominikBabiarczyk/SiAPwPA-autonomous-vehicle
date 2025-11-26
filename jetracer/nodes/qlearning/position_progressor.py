@@ -1,5 +1,5 @@
 # from camera.get_odometry import OdometrySubscriber
-from jetracer_auto.sensors.get_odometry import OdometrySubscriber
+from jetracer.nodes.sensors.get_odometry import OdometrySubscriber
 
 
 class PositionProgressor:

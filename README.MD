@@ -1,4 +1,4 @@
-Jeżeli nvidia gpu nie jest skonfigurowane/dostępne, zakomentuj odpowiednie linie w compose.yaml
+Jeżeli nvidia gpu nie jest skonfigurowane/dostępne, zakomentuj odpowiednie linie w .devcontainer/compose.yaml
 
 Przy pierwszym/uruchomieniu aktualizacji:
 

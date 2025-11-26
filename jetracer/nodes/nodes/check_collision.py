@@ -97,7 +97,7 @@ class CollisionChecker(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ColisionChecker()
+    node = CollisionChecker()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

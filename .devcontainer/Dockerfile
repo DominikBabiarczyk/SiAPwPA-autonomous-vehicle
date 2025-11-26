@@ -40,7 +40,8 @@ RUN pip3 install \
     jsonschema \
     jinja2 \
     pyros-genmsg \
-    future 
+    future \
+    pynput
 
 
 # Install Gazebo Harmonic - Default Gazebo version in ROS2 Humble is Fortress
@@ -53,7 +54,8 @@ RUN apt install -y ros-humble-turtle-tf2-py ros-humble-tf2-tools
 RUN apt-get update && apt-get install -y \
     ros-humble-navigation2 \
     ros-humble-nav2-bringup \
-    ros-humble-nav2-behavior-tree 
+    ros-humble-nav2-behavior-tree  \ 
+    tmux
 
 RUN apt-get update -y
 RUN apt-get upgrade -y

@@ -3,13 +3,20 @@ import numpy as np
 
 class BirdView:
   def __init__(self, src_points=None, dst_points=None):
-    self.src_points = np.float32([
-      [91, 359],
-      [560, 359],
-      [370, 217],
-      [271, 217]
-    ])
+    # self.src_points = np.float32([
+    #   [91, 359],
+    #   [560, 359],
+    #   [370, 217],
+    #   [271, 217]
+    # ])
 
+    self.src_points = np.float32([
+      [38, 321],
+      [640, 321],
+      [372, 44],
+      [274, 44]
+    ])
+        
     self.dst_points = np.float32([
       [0 + 100, 300],
       [87 + 100, 300],

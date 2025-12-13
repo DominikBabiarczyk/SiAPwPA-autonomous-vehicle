@@ -41,8 +41,10 @@ RUN pip3 install \
     jsonschema \
     jinja2 \
     pyros-genmsg \
-    future 
-
+    future \
+    pynput \
+    torch \
+    h5py
 
 # Install Gazebo Harmonic - Default Gazebo version in ROS2 Humble is Fortress
 RUN curl https://packages.osrfoundation.org/gazebo.gpg --output /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
@@ -50,6 +52,12 @@ RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/p
 RUN apt-get update -y
 RUN apt-get install -y ros-humble-ros-gzharmonic
 RUN apt install -y ros-humble-turtle-tf2-py ros-humble-tf2-tools
+
+RUN apt-get update && apt-get install -y \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-nav2-behavior-tree  \ 
+    tmux
 
 RUN apt-get update -y
 RUN apt-get upgrade -y
@@ -67,6 +75,6 @@ WORKDIR /home/developer/ros2_ws
 
 
 RUN echo ". /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc \
-    && echo ". /home/developer/ros2_ws/install/setup.bash" >> ~/.bashrc
-
+    && echo ". /home/developer/ros2_ws/install/setup.bash" >> ~/.bashrc \
+    && echo "export PYTHONPATH=\$HOME/ros2_ws/install/jetracer/lib/python3.10/site-packages:\$PYTHONPATH" >> ~/.bashrc
 CMD [ "sleep", "infinity" ]

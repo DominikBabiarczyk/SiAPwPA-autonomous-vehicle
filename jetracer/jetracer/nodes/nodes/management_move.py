@@ -1,4 +1,3 @@
-
 from jetracer.nodes.perception.splain_tracking.get_error import ImageErrorCalculator
 from jetracer.nodes.perception.splain_tracking.get_main_lines import MainLines
 from jetracer.nodes.perception.splain_tracking.get_splain_from_lines import LaneSpline
@@ -11,7 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 import threading
-
 
 
 def imshow_nonblocking(img, window_name='image', scale=1):
@@ -78,6 +76,8 @@ class ManagementMove:
         self.pid_controller = PIDController(Kp=0.01, Ki=0.0, Kd=0.0)
         self.error_calculator = ImageErrorCalculator()
         self.image_publisher = ImagePublisher()
+        self.image_publisher2 = ImagePublisher("camera/merged_view", name_node="merged_view_publisher")
+        self.image_publisher3 = ImagePublisher("camera/original_bird_view", name_node="original_bird_view")
         # start spinning the publisher node in a background thread so its timer callbacks run
         # def spin_pub():
         #     try:
@@ -92,8 +92,28 @@ class ManagementMove:
         for i in range(steps):
             rclpy.spin_once(self.main_lines, timeout_sec=0.1)
             self.main_lines.wait_for_image()
-            splain = self.main_lines.get_main_lines()
+            splain, panorama, bird_view_image = self.main_lines.get_main_lines()
             # roi = self.main_lines.get_main_lines()
+
+
+
+            if hasattr(self.image_publisher2, 'update_frame'):
+                self.image_publisher2.update_frame(panorama)
+            else:
+                self.image_publisher2.update_binary_frame(panorama)
+            # publish immediately if method exists
+            if hasattr(self.image_publisher2, 'publish_now'):
+                self.image_publisher2.publish_now()
+
+
+
+            if hasattr(self.image_publisher3, 'update_frame'):
+                self.image_publisher3.update_frame(bird_view_image)
+            else:
+                self.image_publisher3.update_binary_frame(bird_view_image)
+            # publish immediately if method exists
+            if hasattr(self.image_publisher3, 'publish_now'):
+                self.image_publisher3.publish_now()
 
 
             #PID
@@ -118,13 +138,20 @@ class ManagementMove:
 
             steering = compute_steering_from_binary(splain, 0.05, self.image_publisher)
 
-            
 
             print(steering)
             self.commander.go_vehicle(0.35, -steering)
 
 
+def main(args=None):
+    rclpy.init(args=args)
+    try:
+        manager = ManagementMove()
+        manager.adjust_movement()
+    except Exception as e:
+        print(f"Error in main: {e}")
+    finally:
+        rclpy.shutdown()
+
 if __name__ == "__main__":
-    rclpy.init()
-    manager = ManagementMove()
-    manager.adjust_movement()
+    main()

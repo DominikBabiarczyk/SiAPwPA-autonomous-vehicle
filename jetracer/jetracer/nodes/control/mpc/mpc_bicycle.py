@@ -256,7 +256,7 @@ def compute_steering_from_binary(binary_img, px2m, img_publisher, v=4.0, L=2.5, 
 
     # dopasuj wielomian referencyjny (używamy stopnia 3 tak jak w symulacji)
     try:
-        poly = fit_reference_poly(x_pts, y_pts, deg=3)
+        poly = fit_reference_poly(x_pts, y_pts, deg=2)
     except Exception:
         return 0.0
     
@@ -332,7 +332,7 @@ def run_simulation():
 
 
     x_pts, y_pts = extract_points_from_binary(binary, px2m)
-    poly = fit_reference_poly(x_pts, y_pts, deg=3)
+    poly = fit_reference_poly(x_pts, y_pts, deg=2)
 
     # Initial vehicle state (x forward, y lateral, psi heading)
     state = np.array([0.0, 0.0, 0.0])

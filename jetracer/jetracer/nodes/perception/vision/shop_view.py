@@ -36,6 +36,7 @@ class BirdViewSaver(Node):
             cv_img = arr.reshape((msg.height, msg.width, 3))
         cv2.imshow('Kamera', cv_img)
         cv2.waitKey(1)
+        cv2.imwrite('original_image.png', cv_img)
         transformation = BirdView()
         bird_view = transformation.apply_transform(cv_img)
         # bird_line_image = self.image_procesor.get_lines(bird_view)

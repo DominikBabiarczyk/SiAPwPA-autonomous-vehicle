@@ -31,7 +31,9 @@ class PreprocessSensor(Node):
             self.last_image = arr.reshape((msg.height, msg.width, 3))
 
         # Zapisz każdą odebraną ramkę do pliku PNG
-        
+        if self.last_image is not None:
+            cv2.imwrite(f"simple_i_{self.frame_counter:06d}.png", self.last_image)
+            self.frame_counter += 1   
 
     def wait_for_image(self, timeout_sec=5.0):
         """Czeka na pierwszą wiadomość z obrazem"""

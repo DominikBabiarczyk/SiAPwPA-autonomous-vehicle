@@ -7,6 +7,11 @@ Przy pierwszym/uruchomieniu aktualizacji:
 ```colcon build --symlink-install```
 ```source ~/.bashrc```
 
+Uruchomienie
+```ros2 launch jetracer jetracer.launch.py ```
+
+Jeżeli ros2 launch (...) nie działa to manualnie.
+
 Zmienna srodowiskowa: 
 
 ```export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:/home/developer/ros2_ws/src/car_package/ackermann-vehicle-gzsim-ros2/saye_description/models```

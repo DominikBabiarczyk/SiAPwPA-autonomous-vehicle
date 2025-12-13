@@ -20,6 +20,7 @@ RUN apt update && \
         python3-vcstool \
         python3-colcon-clean \
         wget \
+        btop \
         clang-format && \
     python3 -m pip install -U \
         argcomplete \
@@ -68,7 +69,7 @@ RUN useradd -rm -d /home/developer -s /bin/bash -g root -G sudo -u 1001 develope
     adduser developer sudo
 USER developer
 
-# RUN git clone https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot --recursive -b main && \
+# RUN git clone httops://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot --recursive -b main && \
 #     echo developer | sudo -S bash /home/developer/PX4-Autopilot/Tools/setup/ubuntu.sh
 
 COPY . /home/developer/ros2_ws
@@ -76,6 +77,7 @@ WORKDIR /home/developer/ros2_ws
 
 
 RUN echo ". /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc \
-    && echo ". /home/developer/ros2_ws/install/setup.bash" >> ~/.bashrc
+    && echo ". /home/developer/ros2_ws/install/setup.bash" >> ~/.bashrc \
+    && echo "export PYTHONPATH=\$HOME/ros2_ws/install/jetracer/lib/python3.10/site-packages:\$PYTHONPATH" >> ~/.bashrc
 
 CMD [ "sleep", "infinity" ]

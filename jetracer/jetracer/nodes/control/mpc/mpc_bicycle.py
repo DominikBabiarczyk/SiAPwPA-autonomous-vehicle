@@ -22,6 +22,8 @@ Dependencies: numpy, matplotlib, scipy
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
+from jetracer.nodes.perception.splain_tracking.make_splain import get_poly_from_binary_image
+
 try:
     import cv2
 except Exception:
@@ -228,7 +230,7 @@ def wrap_angle(a):
     return (a + np.pi) % (2 * np.pi) - np.pi 
 
 
-def compute_steering_from_binary(binary_img, px2m, img_publisher, v=4.0, L=2.5, dt=0.1, horizon=10, ):
+def compute_steering_from_binary(poly, v=4.0, L=2.5, dt=0.1, horizon=10,):
     """Compute steering angle (delta, radians) from a binary bird-eye image.
 
     Steps:
@@ -245,38 +247,6 @@ def compute_steering_from_binary(binary_img, px2m, img_publisher, v=4.0, L=2.5, 
             publishes the binary image on that topic (encoding mono8).
     """
 
-    try:
-        x_pts, y_pts = extract_points_from_binary(binary_img, px2m)
-    except Exception:
-        return 0.0
-
-    if len(x_pts) < 4:
-        # za mało punktów do dopasowania sensownego polinomu
-        return 0.0
-
-    # dopasuj wielomian referencyjny (używamy stopnia 3 tak jak w symulacji)
-    try:
-        poly = fit_reference_poly(x_pts, y_pts, deg=2)
-    except Exception:
-        return 0.0
-    
-
-    # Build visualization image with points & polynomial and publish
-    try:
-        viz = draw_points_on_image(binary_img, x_pts, y_pts, px2m, poly)
-        if viz is not None:
-            # prefer direct color frame update
-            if hasattr(img_publisher, 'update_frame'):
-                img_publisher.update_frame(viz)
-            else:
-                img_publisher.update_binary_frame(viz)
-            # publish immediately if method exists
-            if hasattr(img_publisher, 'publish_now'):
-                img_publisher.publish_now()
-    except Exception:
-        pass
-
-    # vehicle at origin: x_fwd = 0
     x_fwd = 0.0
     # referencyjna lateralna pozycja i jej pochodna w punkcie 0
     y_ref = np.polyval(poly, x_fwd)
@@ -290,136 +260,3 @@ def compute_steering_from_binary(binary_img, px2m, img_publisher, v=4.0, L=2.5, 
     delta0, seq = linear_mpc_control((e_y, e_psi), v, L, dt, horizon)
     return float(delta0)
 
-
-def run_simulation():
-    # Car parameters
-    L = 2.5  # wheelbase (m)
-    v = 4.0  # constant forward speed (m/s)
-    dt = 0.1
-    horizon = 10
-    sim_time = 20.0
-
-    # Create synthetic binary image and extract ref polynomial
-    binary, px2m = binary_path_demo(width=220, height=600, lane_offset=0.0)
-
-    # show binary image using OpenCV (or matplotlib fallback)
-    def show_binary_opencv(binary_img, px2m, scale=3, window_name='binary_path'):
-        """Display binary image using OpenCV. Scales image for visibility and waits for key press.
-
-        If OpenCV is not available, falls back to matplotlib.imshow.
-        """
-        if cv2 is None:
-            try:
-                plt.figure(figsize=(6, 10))
-                plt.imshow(binary_img, cmap='gray', origin='upper')
-                plt.title('binary path (matplotlib fallback)')
-                plt.axis('off')
-                plt.show()
-            except Exception:
-                print('[show_binary_opencv] Cannot display image: cv2 and matplotlib unavailable')
-            return
-
-        img = (binary_img * 255).astype('uint8')
-        h, w = img.shape
-        img_resized = cv2.resize(img, (w * scale, h * scale), interpolation=cv2.INTER_NEAREST)
-        img_bgr = cv2.cvtColor(img_resized, cv2.COLOR_GRAY2BGR)
-        cv2.imshow(window_name, img_bgr)
-        print('[show_binary_opencv] Press any key in the image window to continue...')
-        cv2.waitKey(0)
-        cv2.destroyWindow(window_name)
-
-    show_binary_opencv(binary, px2m, scale=3)
-
-
-    x_pts, y_pts = extract_points_from_binary(binary, px2m)
-    poly = fit_reference_poly(x_pts, y_pts, deg=2)
-
-    # Initial vehicle state (x forward, y lateral, psi heading)
-    state = np.array([0.0, 0.0, 0.0])
-    states = [state.copy()]
-    deltas = []
-    times = [0.0]
-
-    fig, ax = plt.subplots(figsize=(6, 9))
-    plt.ion()
-
-    t = 0.0
-    steps = int(sim_time / dt)
-    for i in range(steps):
-        # Compute lateral & heading errors with respect to polynomial reference
-        x_fwd = state[0]
-        y_lat = state[1]
-        psi = state[2]
-        y_ref = np.polyval(poly, x_fwd)
-        dy_ref = np.polyval(np.polyder(poly), x_fwd)
-        psi_ref = np.arctan2(dy_ref, 1.0)
-        e_y = y_lat - y_ref
-        e_psi = wrap_angle(psi - psi_ref)
-
-        # Solve MPC for steering sequence
-        delta0, seq = linear_mpc_control((e_y, e_psi), v, L, dt, horizon)
-
-        # Apply first control to actual vehicle (kinematic bicycle with Euler)
-        delta_apply = np.clip(delta0, -0.6, 0.6)
-        # update full kinematic
-        state[0] += dt * v * np.cos(state[2])
-        state[1] += dt * v * np.sin(state[2])
-        state[2] += dt * v / L * np.tan(delta_apply)
-        state[2] = wrap_angle(state[2])
-
-        # store data
-        states.append(state.copy())
-        deltas.append(delta_apply)
-        t += dt
-        times.append(t)
-
-        # Visualization
-        ax.clear()
-        ax.set_title(f"MPC bicycle demo t={t:.2f}s")
-        # plot binary path (converted to meters)
-        h, w = binary.shape
-        # show path points as scatter in world coordinates
-        ax.scatter(x_pts, y_pts, c='k', s=3, label='path points')
-
-        # plot fitted polynomial
-        xs_plot = np.linspace(0, max(20.0, state[0] + 20), 200)
-        ys_plot = np.polyval(poly, xs_plot)
-        ax.plot(xs_plot, ys_plot, 'r--', label='ref poly')
-
-        # plot vehicle position and past trajectory
-        St = np.array(states)
-        ax.plot(St[:, 0], St[:, 1], 'b-', label='vehicle traj')
-        ax.scatter([state[0]], [state[1]], c='b', s=40)
-
-        # predicted error trajectory in world coords using linear predictions
-        # We'll map predicted e_y,e_psi to approximate world points
-        # (simple integration assuming small angles)
-        e_y_pred = e_y
-        e_psi_pred = e_psi
-        pred_world_x = []
-        pred_world_y = []
-        for k in range(horizon):
-            # predict next using same linear model used in MPC
-            e_y_pred = e_y_pred + dt * v * e_psi_pred
-            e_psi_pred = e_psi_pred + dt * v / L * seq[k]
-            pred_x = state[0] + (k + 1) * dt * v * np.cos(state[2])
-            # map lateral error back to world y by adding to reference at that x
-            yref_k = np.polyval(poly, pred_x)
-            pred_world_x.append(pred_x)
-            pred_world_y.append(yref_k + e_y_pred)
-        if pred_world_x:
-            ax.plot(pred_world_x, pred_world_y, 'g-.', label='predicted')
-
-        ax.set_xlabel('x forward (m)')
-        ax.set_ylabel('y lateral (m)')
-        ax.legend(loc='upper left')
-        ax.set_xlim(max(0, state[0] - 5), state[0] + 25)
-        ax.set_ylim(min(-6, state[1] - 5), max(6, state[1] + 5))
-        plt.pause(0.01)
-
-    plt.ioff()
-    plt.show()
-
-
-if __name__ == '__main__':
-    run_simulation()

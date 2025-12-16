@@ -16,7 +16,7 @@ class BirdView:
       [372, 44],
       [274, 44]
     ])
-        
+
     self.dst_points = np.float32([
       [0 + 100, 300],
       [87 + 100, 300],
@@ -24,6 +24,16 @@ class BirdView:
       [0 + 100, 0 ]
     ])
     self.set_transform(self.src_points, self.dst_points)
+
+  def transform_points(self, points):
+    """
+    Przekształca listę punktów (x, y) zgodnie z macierzą bird-view.
+    points: lista [(x, y), ...]
+    Zwraca: lista [(x', y'), ...] po transformacji
+    """
+    pts = np.array(points, dtype=np.float32).reshape(-1, 1, 2)
+    pts_trans = cv2.perspectiveTransform(pts, self.transform_matrix)
+    return [tuple(pt[0]) for pt in pts_trans]
 
   def set_transform(self, src_points, dst_points):
     # Oblicz macierz transformacji na podstawie punktów źródłowych i docelowych
@@ -34,5 +44,7 @@ class BirdView:
       # Zastosuj transformację do obrazu
       width = int(np.max(self.dst_points[:, 0]))
       height = int(np.max(self.dst_points[:, 1]))
-      return cv2.warpPerspective(img, self.transform_matrix, (width+100, height))
+      result = cv2.warpPerspective(img, self.transform_matrix, (width+100, height))
+
+      return result
     return img

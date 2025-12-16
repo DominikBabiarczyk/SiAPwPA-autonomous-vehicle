@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 from collections import deque
 
+
 class MainLines(Node):
   def __init__(self, topic="/rs_front/image"):
     super().__init__('preprocess_sensor')
@@ -24,6 +25,8 @@ class MainLines(Node):
     self.orange_processor = OrangeBinaryProcessor()
     self.lane_spline = LaneSpline(smooth=5.0, step=3)
     self.bufor = deque(maxlen=10)
+    self.image_transform = BirdView()
+
 
   def image_callback(self, msg):
       if self.bridge:
@@ -45,8 +48,8 @@ class MainLines(Node):
   def get_main_lines(self):
     image = self.last_image.copy()
 
-    image_transform = BirdView()
-    bird_view_image = image_transform.apply_transform(image)
+    bird_view_image = self.image_transform.apply_transform(image)
+    cv2.imwrite(f"bird_view_image.png", bird_view_image)
     
     bird_view_image_roi = self.get_roi(bird_view_image)
     self.bufor.append(bird_view_image_roi)
@@ -66,7 +69,28 @@ class MainLines(Node):
       # Zwraca region zainteresowania (ROI) z obrazu
       height, width = image.shape[:2]
       roi = image[200:height, width//2 - 70: width//2 + 70]
+      # print("all with height:", height, "width:", width)
       return roi
+  
+  def point_to_roi(self, pt, image_shape):
+    height, width = image_shape[:2]
+    x_offset = width // 2 - 70
+    y_offset = 200
+    x_roi = pt[0] - x_offset
+    y_roi = pt[1] - y_offset
+    return (x_roi, y_roi)
+
+  def get_point_in_roi(self, points):
+    roi_points = [self.point_to_roi(pt, self.last_image.shape) for pt in points]
+    return roi_points
+  
+  def get_set_points_in_roi(self, points):
+    # Najpierw transformuj punkty do bird-view
+    points_after_transform = self.image_transform.transform_points(points)
+    # Następnie przetnij je tak jak obraz ROI
+    roi_points = [self.point_to_roi(pt, self.last_image.shape) for pt in points_after_transform]
+    return roi_points
+
   
 
 def stitch_first_last_from_buffer(buffer):

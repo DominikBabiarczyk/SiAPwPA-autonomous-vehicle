@@ -69,7 +69,7 @@
     <pose>1.0 0.4 0.05 0 0 0</pose>
   </include>
 
-    <!-- Red square obstacle -->
+  <!-- Red square obstacle -->
   <model name="red_square_obstacle">
     <pose>2 0 0.05 0 0 0</pose> <!-- X=2, Y=0, Z=0.05, adjust as needed -->
     <static>true</static>
@@ -81,8 +81,8 @@
           </box>
         </geometry>
         <material>
-          <ambient>1 0 0 1</ambient>
-          <diffuse>1 0 0 1</diffuse>
+          <ambient>0 1 0 1</ambient>
+          <diffuse>0 1 0 1</diffuse>
         </material>
       </visual>
       <collision name="collision">
@@ -94,6 +94,8 @@
       </collision>
     </link>
   </model>
+
+
 
 </world>
 </sdf>

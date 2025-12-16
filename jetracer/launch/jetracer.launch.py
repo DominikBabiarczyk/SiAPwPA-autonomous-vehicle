@@ -56,9 +56,9 @@ def generate_launch_description():
         ]
     )
 
-    # start after 5 seconds to let bridge initialize
+    # start after 15 seconds to let bridge initialize
     management_move = TimerAction(
-        period=5.0,
+        period=15.0,
         actions=[
             Node(
                 package='jetracer',

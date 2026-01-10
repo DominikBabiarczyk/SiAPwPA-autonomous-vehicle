@@ -24,27 +24,21 @@ def extract_largest_blob(binary_img, min_area=500):
     Zwraca:
         mask – obraz 0/255 z największym spójnym obiektem
     """
-    # Upewnij się, że wartości to 0/255
     bin_img = (binary_img > 127).astype(np.uint8) * 255
 
-    # connected components
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(bin_img, connectivity=8)
 
-    # stats[:, cv2.CC_STAT_AREA] -> lista pól obiektów
     areas = stats[1:, cv2.CC_STAT_AREA]  # pomiń tło (index 0)
     if len(areas) == 0:
         return np.zeros_like(binary_img)
 
-    # filtr anty-linia: odrzucamy obiekty poniżej min_area
     valid_areas = [(i+1, area) for i, area in enumerate(areas) if area >= min_area]
     
     if not valid_areas:
         return np.zeros_like(binary_img)
 
-    # wybór największego obiektu
     largest_label, largest_area = max(valid_areas, key=lambda x: x[1])
 
-    # maska dla największego obiektu
     mask = (labels == largest_label).astype(np.uint8) * 255
 
     return mask
@@ -56,7 +50,6 @@ def get_obstacle_base_points(binary):
 	bottom_points = []
 
 	for cnt in contours:
-			# każdy punkt konturu ma postać [[x, y]]
 			ys = cnt[:, 0, 1]          # bierzemy współrzędne y
 			idx = np.argmax(ys)        # index największego y
 			bottom_point = cnt[idx][0] # [x, y]
@@ -71,16 +64,12 @@ def blackout_rows_threshold_5_6(img):
     out = img.copy()
     height, width = img.shape
 
-    # próg = 5/6 szerokości wiersza
     threshold = (5 * width) / 8
 
-    # policz białe piksele w każdym rzędzie
     white_count = np.sum(img == 255, axis=1)
 
-    # znajdź rzędy do wyczyszczenia
     rows_to_blackout = white_count > threshold
 
-    # zamień całe wiersze na czarne (0)
     out[rows_to_blackout, :] = 0
 
     return out
@@ -99,14 +88,11 @@ class DepthImageSubscriber(Node):
 		self.subscription = self.create_subscription(
 			Image, topic, self.image_callback, 10)
 		self.get_logger().info(f"Subskrypcja: {topic}")
-		# Publisher for difference image (visible in rqt)
 		self.diff_publisher = ImagePublisher(topic='camera/depth_diff', name_node='depth_diff_publisher')
-		# Load reference image from file
 		import cv2
 		try:
 			ref = cv2.imread(reference_path, cv2.IMREAD_UNCHANGED)
 			if ref is not None:
-				# If loaded as 8-bit, convert to float32 for diff
 				if ref.dtype != np.float32:
 					ref = ref.astype(np.float32)
 				self.reference_image = ref
@@ -119,14 +105,12 @@ class DepthImageSubscriber(Node):
 		self.points = None
 
 	def image_callback(self, msg):
-		# Convert ROS Image message to numpy array
 		if self.bridge:
 			depth_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
 		else:
 			arr = np.frombuffer(msg.data, dtype=np.float32)
 			depth_img = arr.reshape((msg.height, msg.width))
 
-		# Ensure float32 depth
 		if depth_img is None:
 			return
 		if not isinstance(depth_img, np.ndarray):
@@ -138,21 +122,6 @@ class DepthImageSubscriber(Node):
 				pass
 
 		self.last_image = depth_img
-
-		# diff and binarization
-		# img = np.nan_to_num(depth_img, nan=0.0, posinf=0.0, neginf=0.0)
-		# vmin = float(np.min(img))
-		# vmax = float(np.max(img))
-		# if vmax - vmin < 1e-12:
-		# 	img_norm = np.zeros_like(img, dtype=np.uint8)
-		# else:
-		# 	img_norm = ((img - vmin) / (vmax - vmin) * 255.0).astype(np.uint8)
-		# diff = np.abs(self.reference_image - img_norm)
-		# _, diff_bin = cv2.threshold(diff, 8, 255, cv2.THRESH_BINARY)
-		# diff_bin = blackout_rows_threshold_5_6(diff_bin)
-		# largest_object = extract_largest_blob(diff_bin, min_area=500)
-		# cv2.imwrite("received_depth.png", largest_object)
-		# bird_view_image = self.bird_view_transform.apply_transform(largest_object.astype(np.uint8))
 
 		img_uint8 = cv2.normalize(depth_img, None, 0, 255, cv2.NORM_MINMAX)
 		img_uint8 = img_uint8.astype(np.uint8)
@@ -184,17 +153,3 @@ class DepthImageSubscriber(Node):
 	
 	def get_obstacle_base_points(self):
 		return self.points
-
-def main():
-	rclpy.init()
-	node = DepthImageSubscriber()
-	try:
-		rclpy.spin(node)
-	except KeyboardInterrupt:
-		pass
-	finally:
-		node.destroy_node()
-		rclpy.shutdown()
-
-if __name__ == '__main__':
-	main()

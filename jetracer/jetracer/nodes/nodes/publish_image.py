@@ -35,25 +35,25 @@ class ImagePublisher(Node):
         self.frame = arr
 
 
-    def update_binary_frame(self, binary_img: np.ndarray):
-        """Accept binary image (0/1 or 0/255) and convert to BGR uint8 for publishing."""
-        if binary_img is None:
-            return
-        b = np.asarray(binary_img)
-        if b.ndim == 3 and b.shape[2] == 3:
-            if cv2 is not None:
-                gray = cv2.cvtColor(b.astype(np.uint8), cv2.COLOR_BGR2GRAY)
-            else:
-                gray = (b.astype(np.float32).mean(axis=2)).astype(np.uint8)
-            mask = (gray > 0).astype(np.uint8) * 255
-            bgr = np.stack([mask, mask, mask], axis=-1)
-        else:
-            if b.ndim == 3:
-                b = b[..., 0]
-            b_bin = (b > 0).astype(np.uint8) * 255
-            bgr = np.stack([b_bin, b_bin, b_bin], axis=-1)
+    # def update_binary_frame(self, binary_img: np.ndarray):
+    #     """Accept binary image (0/1 or 0/255) and convert to BGR uint8 for publishing."""
+    #     if binary_img is None:
+    #         return
+    #     b = np.asarray(binary_img)
+    #     if b.ndim == 3 and b.shape[2] == 3:
+    #         if cv2 is not None:
+    #             gray = cv2.cvtColor(b.astype(np.uint8), cv2.COLOR_BGR2GRAY)
+    #         else:
+    #             gray = (b.astype(np.float32).mean(axis=2)).astype(np.uint8)
+    #         mask = (gray > 0).astype(np.uint8) * 255
+    #         bgr = np.stack([mask, mask, mask], axis=-1)
+    #     else:
+    #         if b.ndim == 3:
+    #             b = b[..., 0]
+    #         b_bin = (b > 0).astype(np.uint8) * 255
+    #         bgr = np.stack([b_bin, b_bin, b_bin], axis=-1)
 
-        self.update_frame(bgr)
+    #     self.update_frame(bgr)
 
     def publish_now(self):
         """Publish current frame immediately (safe, avoids extra timer handling)."""

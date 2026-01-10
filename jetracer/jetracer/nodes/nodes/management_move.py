@@ -1,3 +1,5 @@
+from jetracer.nodes.perception.splain_tracking.make_splain import PollynomialFit
+from jetracer.nodes.perception.obstacle_avoiddance.obstacle_avoidance_decider import ObstacleAvoidanceDecider
 from jetracer.nodes.perception.splain_tracking.get_error import ImageErrorCalculator
 from jetracer.nodes.perception.splain_tracking.get_main_lines import MainLines
 from jetracer.nodes.perception.splain_tracking.get_splain_from_lines import LaneSpline
@@ -7,7 +9,6 @@ from jetracer.nodes.control.mpc.mpc_bicycle import compute_steering_from_binary
 from jetracer.nodes.nodes.publish_image import ImagePublisher
 from jetracer.nodes.perception.vision.transform import BirdView
 from jetracer.nodes.perception.splain_tracking.get_depth_image import DepthImageSubscriber
-from jetracer.nodes.perception.splain_tracking.make_splain import get_poly_from_binary_image
 import rclpy
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,7 +26,7 @@ def get_centroid(points):
         return None
     points_arr = np.array(points)
     centroid = np.mean(points_arr, axis=0)
-    return tuple(centroid)
+    return [tuple(centroid)]
 
 
 class ImageReceiver(Node):
@@ -44,52 +45,31 @@ class ImageReceiver(Node):
     def get_last_image(self):
         return self.last_image
 
+class TurnDirection:
+    def __init__(self, commander):
+        self.commander = commander
+        self.max_on_state = 30
+        self.max_on_state = [30, 30, 10, 30, 40]
 
-def imshow_nonblocking(img, window_name='image', scale=1):
-    """Show `img` in a non-blocking OpenCV window.
+    def initialize(self, direction):
+        self.direction = direction
+        self.number_of_iterations = np.zeros(5, dtype=int)
+        self.actual_state = 0
+        self.state_steerin = [direction, -direction, 0, -direction, direction, 0]
 
-    - If OpenCV is available: uses cv2.imshow + cv2.waitKey(1) so the call returns
-      immediately and the window updates. Call repeatedly to update the image.
-    - If OpenCV is not available: falls back to matplotlib interactive draw and pause(0.001).
+    def move(self, velocity=0.15):
+        if self.number_of_iterations[self.actual_state] > self.max_on_state[self.actual_state]:
+            self.actual_state += 1
+            self.direction *= -1
+            print("Finished turn maneuver")
+            if self.actual_state >= 5:
+                print("koniec") 
 
-    img: numpy array (grayscale 2D or BGR 3-channel). If values are 0/1 it will be scaled.
-    scale: integer scale factor to enlarge small images for visibility.
-    """
-    # prepare image
-    if img is None:
-        return
-    arr = img.copy()
-    # scale binary 0/1 to 0-255
-    if arr.dtype == np.bool_ or arr.max() == 1 and arr.min() >= 0:
-        arr = (arr * 255).astype('uint8')
-    if arr.dtype != np.uint8:
-        arr = arr.astype('uint8')
+                return False  
+        self.commander.go_vehicle(velocity, self.state_steerin[self.actual_state] * 0.6)
+        self.number_of_iterations[self.actual_state] += 1
+        return True
 
-    # if single channel, convert to BGR for consistent display
-    if arr.ndim == 2:
-        disp = cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR) if cv2 is not None else arr
-    else:
-        disp = arr
-
-    if scale != 1:
-        h, w = disp.shape[:2]
-        disp = cv2.resize(disp, (w * scale, h * scale), interpolation=cv2.INTER_NEAREST) if cv2 is not None else disp
-
-    if cv2 is not None:
-        cv2.imshow(window_name, disp)
-        # waitKey with 1ms so it's non-blocking but GUI can refresh
-        cv2.waitKey(1)
-    else:
-        try:
-            plt.ion()
-            plt.imshow(disp, cmap='gray') if disp.ndim == 2 else plt.imshow(disp[:,:,::-1])
-            plt.title(window_name)
-            plt.axis('off')
-            plt.pause(0.001)
-            plt.clf()
-        except Exception:
-            # last-resort: do nothing
-            pass
 
 
 class ManagementMove:
@@ -104,20 +84,22 @@ class ManagementMove:
         self.steering_increment = 0.1
         self.main_lines = MainLines()
         self.commander = ContinuousVehicleCommander()
-        self.error = ImageErrorCalculator()
         self.pid_controller = PIDController(Kp=0.01, Ki=0.0, Kd=0.0)
         self.error_calculator = ImageErrorCalculator()
         self.image_publisher = ImagePublisher()
-        self.image_publisher2 = ImagePublisher("camera/merged_view", name_node="merged_view_publisher")
-        self.image_publisher3 = ImagePublisher("camera/original_bird_view", name_node="original_bird_view")
-
+        #self.image_publisher2 = ImagePublisher("camera/merged_view", name_node="merged_view_publisher")
+        self.obstacle_avoider = ObstacleAvoidanceDecider(image_width=640, image_height=480)
         self.image_receiver = ImageReceiver()
         self.depth_subscriber = DepthImageSubscriber()
         self.transformed_points = BirdView()
+        self.flag_turn = False
+        self.turn_direction = TurnDirection(self.commander)
+        self.poly_fitter = PollynomialFit()
+
         # transformed_points = self.image_transform.transform_points(points)
 
     def adjust_movement(self):
-        steps = 20000
+        steps = 2000000
         for i in range(steps):
             rclpy.spin_once(self.main_lines, timeout_sec=0.1)
             rclpy.spin_once(self.depth_subscriber, timeout_sec=0.1)
@@ -130,30 +112,14 @@ class ManagementMove:
 
             # Get detected obstacle base points from depth subscriber
             points = self.depth_subscriber.get_obstacle_base_points()
-            points_after_transform = self.transformed_points.transform_points(points)
-            one_point = get_centroid(points_after_transform)
-            # Pass points into main_lines to visualize/transform them
-            splain, panorama, bird_view_image = self.main_lines.get_main_lines()
-            # roi = self.main_lines.get_main_lines()
+            # if points:
+            #     points_after_transform = self.transformed_points.transform_points(points)
+            #     one_point = get_centroid(points_after_transform)
+            # else:
+            #     one_point = None
 
+            splain = self.main_lines.get_main_lines()
 
-            if hasattr(self.image_publisher2, 'update_frame'):
-                self.image_publisher2.update_frame(panorama)
-            else:
-                self.image_publisher2.update_binary_frame(panorama)
-            # publish immediately if method exists
-            if hasattr(self.image_publisher2, 'publish_now'):
-                self.image_publisher2.publish_now()
-
-
-
-            if hasattr(self.image_publisher3, 'update_frame'):
-                self.image_publisher3.update_frame(bird_view_image)
-            else:
-                self.image_publisher3.update_binary_frame(bird_view_image)
-            # publish immediately if method exists
-            if hasattr(self.image_publisher3, 'publish_now'):
-                self.image_publisher3.publish_now()
 
 
             #PID
@@ -177,13 +143,27 @@ class ManagementMove:
             # self.image_publisher.publish_now()
             # obstacle = self.image_receiver.get_last_image()
 
+
+            poly = self.poly_fitter.get_poly_from_binary_image(splain, 0.05, self.image_publisher)
             cv2.imwrite("splain.png", splain)
+            # Skip MPC if polynomial fit failed (function returns 0.0)
+            if hasattr(poly, "__len__"):
+                steering = compute_steering_from_binary(poly)
+            else:
+                steering = 0.0
+            
 
-            poly = get_poly_from_binary_image(splain, [one_point],  0.05, self.image_publisher)
+            is_needing_avoidance = self.obstacle_avoider.decide(points if points else [])
+            print(is_needing_avoidance)
+            if is_needing_avoidance is not None and not self.flag_turn:
+                self.flag_turn = True
+                self.turn_direction.initialize(is_needing_avoidance)
 
-            steering = compute_steering_from_binary(poly)
-
-            self.commander.go_vehicle(0.2, -steering)
+            
+            if self.flag_turn:
+                self.flag_turn = self.turn_direction.move(velocity=0.2)
+            else:   
+                self.commander.go_vehicle(0.30, -steering)
 
 
 def main(args=None):

@@ -56,6 +56,31 @@ def generate_launch_description():
         ]
     )
 
+    green_mask_publisher = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package='jetracer',
+                executable='make_gt',
+                name='green_mask_publisher',
+                output='screen'
+            )
+        ]
+    )
+
+    rqt_image_mask = TimerAction(
+        period=10.0,
+        actions=[
+            Node(
+                package='rqt_image_view',
+                executable='rqt_image_view',
+                arguments=['/chase_camera/green_mask'],
+                name='rqt_image_view_green_mask',
+                output='screen'
+            )
+        ]
+    )
+
     # start after 15 seconds to let bridge initialize
     management_move = TimerAction(
         period=15.0,
@@ -74,5 +99,7 @@ def generate_launch_description():
         gz_sim,
         parameter_bridge,
         rqt_image_front,
+        green_mask_publisher,
+        rqt_image_mask,
         management_move,
     ])

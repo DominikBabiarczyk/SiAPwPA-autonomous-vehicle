@@ -1,3 +1,4 @@
+from jetracer.nodes.nodes.publish_image import ImagePublisher
 from jetracer.nodes.perception.splain_tracking.get_splain_from_lines import LaneSpline
 from jetracer.nodes.perception.vision.transform import BirdView
 from jetracer.nodes.perception.vision.image_preprocessing import ImageProcessor
@@ -26,6 +27,8 @@ class MainLines(Node):
     self.lane_spline = LaneSpline(smooth=5.0, step=3)
     self.bufor = deque(maxlen=10)
     self.image_transform = BirdView()
+    self.image_publisher3 = ImagePublisher("camera/original_bird_view", name_node="original_bird_view")
+
 
 
   def image_callback(self, msg):
@@ -35,7 +38,6 @@ class MainLines(Node):
           # fallback: konwersja ręczna jeśli nie ma cv_bridge
           arr = np.frombuffer(msg.data, dtype=np.uint8)
           self.last_image = arr.reshape((msg.height, msg.width, 3))
-      # self.bufor.append(self.last_image)
 
   def wait_for_image(self, timeout_sec=5.0):
     """Czeka na pierwszą wiadomość z obrazem"""
@@ -49,27 +51,20 @@ class MainLines(Node):
     image = self.last_image.copy()
 
     bird_view_image = self.image_transform.apply_transform(image)
-    cv2.imwrite(f"bird_view_image.png", bird_view_image)
     
     bird_view_image_roi = self.get_roi(bird_view_image)
-    self.bufor.append(bird_view_image_roi)
-    panorama = stitch_first_last_from_buffer(buffer=self.bufor)
+    #self.bufor.append(bird_view_image_roi)
+    #panorama = stitch_first_last_from_buffer(buffer=self.bufor)
 
     lines = self.orange_processor.to_binary(bird_view_image)
 
-    # roi = self.get_roi(lines)
-
-    # splain = self.lane_spline.process(lines)
-    #Zapisz splaina jako obraz
-    
-    # self.lane_spline.visualize(splain)
-    return lines, panorama, bird_view_image_roi
+    self.image_publisher3.update_frame(bird_view_image)
+    self.image_publisher3.publish_now()
+    return lines
 
   def get_roi(self, image):
-      # Zwraca region zainteresowania (ROI) z obrazu
       height, width = image.shape[:2]
       roi = image[200:height, width//2 - 70: width//2 + 70]
-      # print("all with height:", height, "width:", width)
       return roi
   
   def point_to_roi(self, pt, image_shape):
@@ -85,13 +80,10 @@ class MainLines(Node):
     return roi_points
   
   def get_set_points_in_roi(self, points):
-    # Najpierw transformuj punkty do bird-view
     points_after_transform = self.image_transform.transform_points(points)
-    # Następnie przetnij je tak jak obraz ROI
     roi_points = [self.point_to_roi(pt, self.last_image.shape) for pt in points_after_transform]
     return roi_points
 
-  
 
 def stitch_first_last_from_buffer(buffer):
     """
@@ -105,38 +97,31 @@ def stitch_first_last_from_buffer(buffer):
     if len(buffer) == 1:
         return buffer[0]
 
-    # wybieramy pierwszy i ostatni obraz
     img1 = buffer[0]
     img2 = buffer[-1]
 
-    # detektor i matcher
     orb = cv2.ORB_create(40)
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
-    # 1. feature detection
     kp1, des1 = orb.detectAndCompute(img1, None)
     kp2, des2 = orb.detectAndCompute(img2, None)
 
     if des1 is None or des2 is None:
         return img1  # brak punktów, zwracamy pierwszy obraz
 
-    # 2. matching
     matches = bf.match(des1, des2)
     matches = sorted(matches, key=lambda x: x.distance)
 
     if len(matches) < 10:
         return img1  # za mało punktów do homografii
 
-    # 3. zbieranie punktów
     pts1 = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     pts2 = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
-    # 4. homografia
     H, mask = cv2.findHomography(pts2, pts1, cv2.RANSAC)
     if H is None:
         return img1
 
-    # 5. warpowanie img2 do przestrzeni img1
     h1, w1 = img1.shape[:2]
     h2, w2 = img2.shape[:2]
 
@@ -169,21 +154,3 @@ def stitch_first_last_from_buffer(buffer):
 
     return result
 
-
-def main():
-  rclpy.init()
-  node = MainLines()
-  try:
-    if node.wait_for_image():
-      node.get_main_lines()
-      print("Zapisano main_lines.png")
-    else:
-      print("Nie otrzymano obrazu w zadanym czasie")
-  except KeyboardInterrupt:
-    pass
-  finally:
-    node.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-  main()

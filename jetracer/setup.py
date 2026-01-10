@@ -37,6 +37,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ros_gazebo_ex = jetracer.nodes.nodes.management_move:main',
+            'make_gt = jetracer.nodes.nodes.make_gt:main',
         ],
     },
 )

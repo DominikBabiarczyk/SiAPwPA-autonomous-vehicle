@@ -13,8 +13,6 @@ class LaneSpline:
         self.smooth = smooth
         self.step = step
         self.curvature_scale = curvature_scale
-
-        # dane pośrednie
         self.points = None
         self.tck = None
         self.u = None
@@ -22,7 +20,6 @@ class LaneSpline:
         self.y_smooth = None
         self.curvature = None
 
-    # ----------------- KROK 1 -----------------
     def extract_centerline_points(self, binary_img):
         """Wyznacza punkty środkowe linii (centroid w każdej linii obrazu)."""
         h, w = binary_img.shape
@@ -35,7 +32,6 @@ class LaneSpline:
         self.points = np.array(pts)
         return self.points
 
-    # ----------------- KROK 2 -----------------
     def filter_points(self, window_size=5):
         """Wygładza punkty np. filtrem medianowym po współrzędnej x."""
         if self.points is None or len(self.points) < 5:
@@ -46,7 +42,6 @@ class LaneSpline:
         self.points = np.column_stack([x_med, y])
         return self.points
 
-    # ----------------- KROK 3 -----------------
     def fit_spline(self):
         """Dopasowuje splajn parametryczny (B-spline)."""
         if self.points is None or len(self.points) < 4:
@@ -56,7 +51,6 @@ class LaneSpline:
         self.tck, self.u = interpolate.splprep([x, y], s=self.smooth)
         return self.tck
 
-    # ----------------- KROK 4 -----------------
     def sample_spline(self, num=200):
         """Generuje gładki tor (x, y) z dopasowanego splajnu."""
         if self.tck is None:
@@ -83,7 +77,6 @@ class LaneSpline:
         elif shape is not None:
             h, w = shape
         else:
-            # oszacuj rozmiar na podstawie skrajnych współrzędnych
             h = int(np.ceil(np.max(self.y_smooth))) + 2
             w = int(np.ceil(np.max(self.x_smooth))) + 2
             h = max(h, 1); w = max(w, 1)
@@ -93,7 +86,6 @@ class LaneSpline:
         for i in range(len(xs) - 1):
             x1, y1 = xs[i], ys[i]
             x2, y2 = xs[i+1], ys[i+1]
-            # pomiń całkowicie poza zakresem
             if (x1 < 0 and x2 < 0) or (y1 < 0 and y2 < 0) or (x1 >= w and x2 >= w) or (y1 >= h and y2 >= h):
                 continue
             x1 = max(0, min(w-1, x1)); x2 = max(0, min(w-1, x2))
@@ -101,7 +93,6 @@ class LaneSpline:
             cv2.line(mask, (x1, y1), (x2, y2), color=1, thickness=1)
         return mask
 
-    # ----------------- KROK 5 -----------------
     def compute_curvature(self):
         """Oblicza krzywiznę splajnu wzdłuż toru."""
         if self.tck is None:
@@ -112,7 +103,6 @@ class LaneSpline:
         self.curvature = curvature * self.curvature_scale
         return self.curvature
 
-    # ----------------- KROK 6 -----------------
     def visualize(self, binary_img, show_points=True, show_curvature=False):
         """Rysuje wynik na obrazie."""
         plt.figure(figsize=(6, 8))
@@ -128,7 +118,6 @@ class LaneSpline:
         plt.savefig(f"camera/splain_tracking/main_lines/main_lines_spline.png")
         plt.close()
 
-    # ----------------- KROK GŁÓWNY -----------------
     def process(self, binary_img):
         """Główna funkcja łącząca wszystkie kroki."""
         self.extract_centerline_points(binary_img)

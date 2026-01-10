@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 
+./build/
+./install/
 # Środowisko wirtualne
 venv/
 .env/

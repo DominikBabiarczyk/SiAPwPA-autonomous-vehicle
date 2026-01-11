@@ -1,7 +1,9 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, SetEnvironmentVariable, TimerAction
+from launch.actions import ExecuteProcess, SetEnvironmentVariable, TimerAction, DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
@@ -9,6 +11,11 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('jetracer')
     world_file = os.path.join(pkg_share, 'worlds', 'Trapezoid', 'worlds', 'Trapezoid.world')
     model_path = '/home/developer/ros2_ws/src/car_package/ackermann-vehicle-gzsim-ros2/saye_description/models'
+
+    # Optional features
+    enable_green_mask_arg = DeclareLaunchArgument(
+        'enable_green_mask', default_value='false',
+        description='Enable green mask publisher (make_gt) and viewer')
     
     # Set environment variable
     env_var = SetEnvironmentVariable(
@@ -63,7 +70,8 @@ def generate_launch_description():
                 package='jetracer',
                 executable='make_gt',
                 name='green_mask_publisher',
-                output='screen'
+                output='screen',
+                condition=IfCondition(LaunchConfiguration('enable_green_mask'))
             )
         ]
     )
@@ -76,7 +84,8 @@ def generate_launch_description():
                 executable='rqt_image_view',
                 arguments=['/chase_camera/green_mask'],
                 name='rqt_image_view_green_mask',
-                output='screen'
+                output='screen',
+                condition=IfCondition(LaunchConfiguration('enable_green_mask'))
             )
         ]
     )
@@ -95,6 +104,7 @@ def generate_launch_description():
     )
     
     return LaunchDescription([
+        enable_green_mask_arg,
         env_var,
         gz_sim,
         parameter_bridge,

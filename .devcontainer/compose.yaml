@@ -7,7 +7,7 @@ services:
     network_mode: host
     privileged: true
     tty: true
-    runtime: nvidia  #GPU 
+    # runtime: nvidia  #GPU 
     stdin_open: true
     security_opt:
       - seccomp:unconfined
@@ -20,5 +20,5 @@ services:
     environment:
       - DISPLAY
       - "QT_X11_NO_MITSHM=1"
-      - NVIDIA_VISIBLE_DEVICES=all #GPU
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,display #GPU
+      # - NVIDIA_VISIBLE_DEVICES=all #GPU
+      # - NVIDIA_DRIVER_CAPABILITIES=compute,utility,display #GPU

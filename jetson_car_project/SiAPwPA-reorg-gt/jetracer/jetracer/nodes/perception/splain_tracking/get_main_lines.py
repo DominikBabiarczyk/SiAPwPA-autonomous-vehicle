@@ -7,20 +7,20 @@ from rclpy.node import Node
 from cv_bridge import CvBridge
 _HAS_CV_BRIDGE = True
 import rclpy
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 import numpy as np
 import cv2
 from collections import deque
 
 
 class MainLines(Node):
-  def __init__(self, topic="/rs_front/image"):
+  def __init__(self, topic="/color/image_raw"): #/rs_front/image/compressed
     super().__init__('preprocess_sensor')
     self.bridge = CvBridge() if _HAS_CV_BRIDGE else None
     self.last_image = None
     self.frame_counter = 0  # licznik zapisanych ramek
     self.subscription = self.create_subscription(
-        Image, topic, self.image_callback, 10)
+        Image, topic, self.image_callback, 10)   #CompressedImage
     self.get_logger().info(f"Subskrypcja: {topic}")
     self.image_processor = ImageProcessor()
     self.orange_processor = OrangeBinaryProcessor()
@@ -33,11 +33,14 @@ class MainLines(Node):
 
   def image_callback(self, msg):
       if self.bridge:
-          self.last_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-      else:
-          # fallback: konwersja ręczna jeśli nie ma cv_bridge
-          arr = np.frombuffer(msg.data, dtype=np.uint8)
-          self.last_image = arr.reshape((msg.height, msg.width, 3))
+          self.last_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+      #else:
+           #fallback: konwersja ręczna jeśli nie ma cv_bridge
+      #np_arr = np.frombuffer(msg.data, dtype=np.uint8)
+      #img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+      #self.last_image = img
+          #arr = np.frombuffer(msg.data, dtype=np.uint8)
+          #self.last_image = arr.reshape((msg.height, msg.width, 3))
 
   def wait_for_image(self, timeout_sec=5.0):
     """Czeka na pierwszą wiadomość z obrazem"""
@@ -48,20 +51,19 @@ class MainLines(Node):
     return self.last_image is not None
 
   def get_main_lines(self):
-    image = self.last_image.copy()
-
-    bird_view_image = self.image_transform.apply_transform(image)
+    #image = self.last_image.copy()
+    bird_view_image = cv2.resize(self.last_image[:,320:,:], (160, 90), interpolation=cv2.INTER_AREA)
+    #bird_view_image = self.image_transform.apply_transform(image)
     
-    bird_view_image_roi = self.get_roi(bird_view_image)
+    #bird_view_image_roi = self.get_roi(bird_view_image)
     #self.bufor.append(bird_view_image_roi)
     #panorama = stitch_first_last_from_buffer(buffer=self.bufor)
 
     lines = self.orange_processor.to_binary(bird_view_image)
-    roi = self.get_roi(lines)
 
-    self.image_publisher3.update_frame(roi)
-    self.image_publisher3.publish_now()
-    return roi
+    #self.image_publisher3.update_frame(bird_view_image)
+    #self.image_publisher3.publish_now()
+    return lines
 
   def get_roi(self, image):
       height, width = image.shape[:2]

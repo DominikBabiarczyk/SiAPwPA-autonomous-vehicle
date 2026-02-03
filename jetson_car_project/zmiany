@@ -1,0 +1,26 @@
+source /opt/ros/dashing/setup.bash
+colcon build --symlink-install
+cd siapw...
+source ../install/setup.bash
+ros2 run jetracer ros_gazebo_ex
+
+
+zmiany:
+- typ copmressedImage zamiast Image w get_main_lines
+- zakomentowane wyliczanie gt
+- zakomentowane publikowane splaina oraz bird_view
+- zakomentowane wyliczanie obrazu z gory
+- kolor czerwony w wyliczaniu maski binarnej 
+
+source /opt/ros/dashing/setup.bash
+colcon build
+export ROS_DOMAIN_ID=35
+source ./install/setup.bash
+ros2 run arducam_ros2 arducam_node
+
+kamera glebi:
+cd realsense2_camera
+source /opt/ros/dashing/setup.bash
+source ~/realsense_wsV2/install/setup.bash
+ros2 run realsense2_camera realsense2_camera_node
+

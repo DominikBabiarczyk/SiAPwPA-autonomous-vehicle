@@ -102,54 +102,42 @@ class DepthImageSubscriber(Node):
 		except Exception as e:
 			self.get_logger().warning(f"Błąd przy wczytywaniu obrazu referencyjnego: {e}")
 		self.bird_view_transform = BirdView()
-		self.roi_mean = None
+		self.points = None
 
 	def image_callback(self, msg):
-			if self.bridge:
-					depth_img = self.bridge.imgmsg_to_cv2(
-							msg, desired_encoding='passthrough'
-					)
-			else:
-					arr = np.frombuffer(msg.data, dtype=np.float32)
-					depth_img = arr.reshape((msg.height, msg.width))
+		if self.bridge:
+			depth_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+		else:
+			arr = np.frombuffer(msg.data, dtype=np.float32)
+			depth_img = arr.reshape((msg.height, msg.width))
 
-			if depth_img is None:
-					return
-			if not isinstance(depth_img, np.ndarray):
-					return
+		if depth_img is None:
+			return
+		if not isinstance(depth_img, np.ndarray):
+			return
+		if depth_img.dtype != np.float32:
+			try:
+				depth_img = depth_img.astype(np.float32)
+			except Exception:
+				pass
 
-			if depth_img.dtype != np.float32:
-					try:
-							depth_img = depth_img.astype(np.float32)
-					except Exception:
-							return
+		self.last_image = depth_img
 
-			self.last_image = depth_img
+		img_uint8 = cv2.normalize(depth_img, None, 0, 255, cv2.NORM_MINMAX)
+		img_uint8 = img_uint8.astype(np.uint8)
 
-			# ============================
-			# ROI + ŚREDNIA JASNOŚĆ
-			# ============================
-			x, y, w, h = 280, 0, 80, 100
 
-			# zabezpieczenie przed wyjściem poza obraz
-			x_end = min(x + w, depth_img.shape[1])
-			y_end = min(y + h, depth_img.shape[0])
+		sobel_x = cv2.Sobel(img_uint8, cv2.CV_64F, dx=1, dy=0, ksize=3)
+		sobel_x = cv2.convertScaleAbs(sobel_x)
 
-			roi = depth_img[y:y_end, x:x_end]
+		_, diff_bin = cv2.threshold(sobel_x, 58, 255, cv2.THRESH_BINARY)
 
-			if roi.size > 0:
-					roi_sum = np.sum(roi)
-					self.roi_mean = roi_sum / roi.size
-			else:
-					self.roi_mean = 0.0
+		self.points = get_obstacle_base_points(diff_bin)
+		for point in self.points:
+			diff_bin[point[1]-5:point[1]+5, point[0]-5:point[0]+5] = 128  # oznaczenie punktu na szaro
 
-			# jeśli chcesz – zapisz / opublikuj
-			self.roi_mean_brightness = self.roi_mean
-			print(f"ROI mean brightness: {self.roi_mean}")
-			self.get_logger().info(f" mean={self.roi_mean}")
-
-			self.diff_publisher.update_frame(roi)
-			self.diff_publisher.publish_now()
+		self.diff_publisher.update_frame(diff_bin)
+		self.diff_publisher.publish_now()
 
 	def wait_for_image(self, timeout_sec=5.0):
 		import time
@@ -163,5 +151,5 @@ class DepthImageSubscriber(Node):
 			return self.last_image.copy()
 		return None
 	
-	def get_turn_decision(self):
-		return self.roi_mean < 0.8
+	def get_obstacle_base_points(self):
+		return self.points

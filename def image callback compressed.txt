@@ -1,0 +1,8 @@
+  def image_callback_compressed(self, msg: CompressedImage):
+      # Obsługa skompresowanego obrazu
+      if self.bridge:
+          self.last_image = self.bridge.compressed_imgmsg_to_cv2(msg)
+      else:
+          np_arr = np.frombuffer(msg.data, dtype=np.uint8)
+          img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+          self.last_image = img

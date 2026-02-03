@@ -67,8 +67,8 @@ class ImagePublisher(Node):
                 encoding = 'bgr8'
             msg = self.bridge.cv2_to_imgmsg(frame, encoding=encoding)
             self.publisher_.publish(msg)
-            s = int(self.frame.sum())
-            # self.get_logger().info(f"Published image now sum={s}")
+            #s = int(self.frame.sum())
+            #self.get_logger().info(f"Published image now sum={s}")
         except Exception:
             pass
 
@@ -79,7 +79,7 @@ class ImagePublisher(Node):
             s = int(self.frame.sum())
         except Exception:
             s = 0
-        # self.get_logger().info(f"Published image sum={s}")
+        self.get_logger().info(f"Published image sum={s}")
 
 
 def main(args=None):

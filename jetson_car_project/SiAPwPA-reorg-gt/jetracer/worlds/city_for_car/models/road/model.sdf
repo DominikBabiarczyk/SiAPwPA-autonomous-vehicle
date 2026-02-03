@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <!-- GŁÓWNA DROGA POZIOMA -->
+  <model name="road">
+      <pose>0 0 0 0 0 0</pose>
+      <static>true</static>
+      <link name="link">
+        <collision name="col">
+          <geometry>
+            <box><size>90 8 0.2</size></box>
+          </geometry>
+        </collision>
+        <visual name="vis_road">
+          <geometry>
+            <box><size>90 8 0.2</size></box>
+          </geometry>
+          <material>
+            <ambient>0.15 0.15 0.15 1</ambient>
+            <diffuse>0.18 0.18 0.18 1</diffuse>
+          </material>
+        </visual>
+        <!-- Środkowy pas (żółty) -->
+        <visual name="vis_center_line">
+          <pose>0 0 0.102 0 0 0</pose>
+          <geometry>
+            <box><size>90 0.2 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.7 0.0 1</ambient>
+            <diffuse>0.9 0.7 0.0 1</diffuse>
+          </material>
+        </visual>
+        <!-- Lewy pas (biały) -->
+        <visual name="vis_left_line">
+          <pose>0 3.8 0.101 0 0 0</pose>
+          <geometry>
+            <box><size>90 0.1 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+        <!-- Prawy pas (biały) -->
+        <visual name="vis_right_line">
+          <pose>0 -3.8 0.101 0 0 0</pose>
+          <geometry>
+            <box><size>90 0.1 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+  </model>
+</sdf>

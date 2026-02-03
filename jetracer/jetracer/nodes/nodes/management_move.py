@@ -152,10 +152,9 @@ class ManagementMove:
             #     steering = 0.0
             
 
-            isTurn = self.depth_subscriber.get_turn_decision()
-            is_needing_avoidance = isTurn
-            is_needing_avoidance = None
-            if is_needing_avoidance is not None and not self.flag_turn:
+            # Use depth-based decision directly; do not override to None
+            is_needing_avoidance = self.depth_subscriber.get_turn_decision()
+            if is_needing_avoidance and not self.flag_turn:
                 self.flag_turn = True
                 self.turn_direction.initialize(1)
 
